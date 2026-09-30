@@ -1,0 +1,68 @@
+% =========================================================================
+% SCRIPT: ANÁLISIS FRECUENCIAL COMPLETO Y ESTABILIDAD - SISTEMA G2(s)
+% =========================================================================
+clear; clc; close all;
+
+% --- 1. Especificación de Frecuencias del Sistema (en Hz) ---
+f_z = 85e3;       % Cero real
+f_p = 110e3;      % Polo real
+f_0 = 120e3;      % Coeficiente lineal del término cuadrático
+f_n = 130e3;      % Frecuencia natural del término cuadrático
+
+% --- 2. Conversión a Frecuencias Angulares (en rad/s) ---
+w_z = 2 * pi * f_z;
+w_p = 2 * pi * f_p;
+w_0 = 2 * pi * f_0;
+w_n = 2 * pi * f_n;
+K   = 5e13;       % Ganancia total del numerador
+
+% --- 3. Construcción de los Polinomios de la Función de Transferencia ---
+% Numerador: K * (s + w_z)
+num = K * [1, w_z];
+
+% Denominador: s * (s + w_p) * (s^2 + w_0*s + w_n^2)
+% Se multiplican consecutivamente los polinomios mediante la función 'conv'
+poly_den1 = conv([1, 0], [1, w_p]);          % s * (s + w_p) -> [1, w_p, 0]
+poly_den2 = [1, w_0, w_n^2];                % [s^2 + w_0*s + w_n^2]
+den       = conv(poly_den1, poly_den2);     % Polinomio total del denominador
+
+% Creación del objeto LTI (Linear Time-Invariant)
+G2 = tf(num, den);
+
+% --- 4. Configuración Personalizada del Diagrama de Bode ---
+opts = bodeoptions;
+opts.FreqUnits    = 'Hz';       % Forzar eje X en Hz en lugar de rad/s
+opts.Grid         = 'on';       % Activar rejilla
+opts.XLim         = [1, 1e6];   % Rango de visualización (1 Hz a 1 MHz) para ver ambos cortes
+opts.Title.String = 'Diagrama de Bode y Márgenes de Estabilidad - G2(s)';
+
+% Graficar con la función nativa de márgenes
+figure('Name', 'Respuesta en Frecuencia de G2(s)', 'Color', 'w');
+margin(G2, opts);
+
+% --- 5. Extracción Numérica de Parámetros y Márgenes ---
+[Gm, Pm, Wcg, Wcp] = margin(G2);
+Gm_dB = 20 * log10(Gm);  % Convertir magnitud absoluta a decibelios
+
+% Conversión de las frecuencias de corte obtenidas (rad/s -> Hz)
+f_pc_Hz = Wcg / (2 * pi);
+f_gc_Hz = Wcp / (2 * pi);
+
+% --- 6. Reporte de Resultados en Consola ---
+fprintf('=========================================================\n');
+fprintf('           DIAGNOSTICO DE MARGENES DE ESTABILIDAD         \n');
+fprintf('=========================================================\n');
+fprintf('Cruce por fase de -180° (w_pc) : %.4e rad/s (%.2f kHz)\n', Wcg, f_pc_Hz/1e3);
+fprintf(' -> MARGEN DE GANANCIA (GM)     : %.2f dB\n', Gm_dB);
+fprintf('---------------------------------------------------------\n');
+fprintf('Cruce por magnitud de 0 dB (w_gc): %.4e rad/s (%.4f Hz)\n', Wcp, f_gc_Hz);
+fprintf(' -> MARGEN DE FASE (PM)         : %.2f deg\n', Pm);
+fprintf('=========================================================\n');
+
+% Evaluación formal del criterio de estabilidad
+if Gm_dB > 0 && Pm > 0
+    fprintf(' DICTAMEN DE ESTABILIDAD: El sistema en lazo cerrado es ESTABLE.\n');
+else
+    fprintf(' DICTAMEN DE ESTABILIDAD: El sistema en lazo cerrado es INESTABLE.\n');
+end
+fprintf('=========================================================\n');
